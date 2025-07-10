@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Firebase Configuration ---
-    // IMPORTANT: Replace this with your own Firebase project configuration!
     const firebaseConfig = {
         apiKey: "AIzaSyD_u4q6CH6IIP9iuSJ_ZbBFK6L_byTXLfA",
         authDomain: "account-book-rushi.firebaseapp.com",
@@ -12,19 +11,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Initialize Firebase and Firestore ---
-    // NOTE: For a real app, you should implement Firebase Authentication and secure your database with Firestore Rules.
-    // For this example, the database is open.
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const transactionsCollection = db.collection('transactions');
+    const suggestionsRef = db.collection('metadata').doc('suggestions');
 
     // --- Global Variables ---
-    let localTransactions = []; // Local cache of transactions
+    let localTransactions = [];
     let suggestionDescriptions = ["Salary", "Groceries", "Food", "Transport", "Rent", "Bills", "Shopping"];
     let selectedType = null;
     let amountString = "0";
     let editMode = false;
-    let currentUnsubscribe = null; // To hold the listener function
+    let currentUnsubscribe = null;
 
     // --- DOM Element References ---
     const balanceEl = document.getElementById('currentBalance');
@@ -63,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(txList) {
         renderSummary(txList);
         renderTransactionList(txList);
-        renderSuggestions();
     }
 
     function renderSummary(txList) {
@@ -77,13 +74,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTransactionList(txList) {
-        transactionListEl.innerHTML = ''; // Clear everything
-        transactionListEl.append(loadingStateEl, emptyStateEl); // Re-append static elements
+        transactionListEl.innerHTML = '';
+        transactionListEl.append(loadingStateEl, emptyStateEl);
         
-        loadingStateEl.classList.add('hidden'); // Hide loading state
+        loadingStateEl.classList.add('hidden');
         emptyStateEl.classList.toggle('hidden', txList.length > 0);
 
-        // Sort transactions by timestamp (most recent first)
         const sortedTransactions = [...txList].sort((a, b) => b.timestamp - a.timestamp);
 
         sortedTransactions.forEach(tx => {
@@ -106,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>`
             : `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 12H6" /></svg>`;
 
-        // Convert Firestore timestamp to JS Date object if it's not already
         const txDate = transaction.timestamp.toDate ? transaction.timestamp.toDate() : transaction.timestamp;
 
         item.innerHTML = `
@@ -133,14 +128,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return wrapper;
     }
 
-    function renderSuggestions() {
+    function renderSuggestions(suggestions) {
+        const suggestionsToRender = suggestions || suggestionDescriptions.slice(0, 5);
         quickSuggestionsEl.innerHTML = '';
-        suggestionDescriptions.slice(0, 5).forEach(desc => {
+        suggestionsToRender.forEach(desc => {
             const chip = document.createElement('button');
             chip.type = 'button';
             chip.className = 'suggestion-chip';
             chip.textContent = desc;
-            chip.addEventListener('click', () => { descriptionInput.value = desc; });
+            chip.addEventListener('click', () => { 
+                descriptionInput.value = desc;
+                renderSuggestions(); // Reset to default after selection
+            });
             quickSuggestionsEl.appendChild(chip);
         });
     }
@@ -176,26 +175,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(amount) || amount <= 0) { showNotification("Please enter a valid amount."); return; }
         if (!description) { showNotification("Please enter a description."); return; }
 
-        const txData = {
-            type: selectedType,
-            amount,
-            description,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        };
+        const txData = { type: selectedType, amount, description };
 
         try {
             if (editMode) {
                 const txId = editTxIdInput.value;
-                // For edits, we don't update the timestamp
-                delete txData.timestamp; 
                 await transactionsCollection.doc(txId).update(txData);
                 showNotification("Transaction updated successfully!", "success");
             } else {
+                txData.timestamp = firebase.firestore.FieldValue.serverTimestamp();
                 await transactionsCollection.add(txData);
                 showNotification("Transaction added successfully!", "success");
             }
             
-            addSuggestion(description);
+            await addSuggestion(description);
             toggleModal(false);
         } catch (error) {
             console.error("Error saving transaction: ", error);
@@ -206,7 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleDeleteTransaction(id) {
         try {
             await transactionsCollection.doc(id).delete();
-            // The onSnapshot listener will handle the UI update automatically
             showNotification("Transaction deleted.", "success");
         } catch (error) {
             console.error("Error deleting transaction: ", error);
@@ -228,15 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleModal(true);
     }
 
-    function fetchAndListenTransactions(query = transactionsCollection) {
+    function fetchAndListenTransactions() {
         loadingStateEl.classList.remove('hidden');
+        if (currentUnsubscribe) currentUnsubscribe();
 
-        // Unsubscribe from the previous listener if it exists
-        if (currentUnsubscribe) {
-            currentUnsubscribe();
-        }
-
-        currentUnsubscribe = query.onSnapshot(snapshot => {
+        currentUnsubscribe = transactionsCollection.onSnapshot(snapshot => {
             localTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateUI(localTransactions);
         }, error => {
@@ -246,28 +234,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Event Handlers & UI ---
+    async function fetchSuggestions() {
+        try {
+            const doc = await suggestionsRef.get();
+            if (doc.exists) {
+                const firestoreSuggestions = doc.data().descriptions || [];
+                const combined = [...firestoreSuggestions, ...suggestionDescriptions];
+                suggestionDescriptions = [...new Set(combined)];
+            }
+        } catch (error) {
+            console.error("Error fetching suggestions:", error);
+        }
+        renderSuggestions();
+    }
 
-    function addSuggestion(description) {
+    async function addSuggestion(description) {
         const lowerCaseDesc = description.toLowerCase();
-        if (!suggestionDescriptions.find(d => d.toLowerCase() === lowerCaseDesc)) {
+        const exists = suggestionDescriptions.some(d => d.toLowerCase() === lowerCaseDesc);
+
+        if (!exists) {
             suggestionDescriptions.unshift(description);
+            try {
+                await suggestionsRef.set({ descriptions: suggestionDescriptions }, { merge: true });
+            } catch (error) {
+                console.error("Error updating suggestions:", error);
+            }
         }
     }
+
+    // --- Event Handlers & UI ---
 
     function selectType(type) {
         selectedType = type;
         incomeBtn.classList.toggle('active', type === 'income');
         expenseBtn.classList.toggle('active', type === 'expense');
         typeToggleWrapper.classList.remove('income', 'expense');
-        if (type) {
-            typeToggleWrapper.classList.add(type);
-        }
+        if (type) typeToggleWrapper.classList.add(type);
     }
 
     function toggleModal(show) {
         if (show) {
-            if (!editMode) { resetForm(); }
+            if (!editMode) resetForm();
             addTxModal.classList.remove('translate-y-full');
         } else {
             addTxModal.classList.add('translate-y-full');
@@ -292,16 +299,15 @@ document.addEventListener('DOMContentLoaded', () => {
         amountString = "0";
         updateAmountDisplay();
         selectType(null);
+        renderSuggestions();
     }
 
     function handleNumpad(key) {
-        if (key === '⌫') {
-            amountString = amountString.length > 1 ? amountString.slice(0, -1) : '0';
-        } else if (key === '.') {
-            if (!amountString.includes('.')) { amountString += '.'; }
-        } else {
-            if (amountString === '0' && key !== '.') { amountString = key; } 
-            else if (amountString.length < 9) { amountString += key; }
+        if (key === '⌫') amountString = amountString.length > 1 ? amountString.slice(0, -1) : '0';
+        else if (key === '.' && !amountString.includes('.')) amountString += '.';
+        else if (key !== '.') {
+            if (amountString === '0') amountString = key;
+            else if (amountString.length < 9) amountString += key;
         }
         updateAmountDisplay();
     }
@@ -313,37 +319,31 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupSwipeActions(wrapper) {
         let startX = 0, currentX = 0, isSwiping = false;
         const item = wrapper.querySelector('.transaction-item');
-
         item.addEventListener('touchstart', (e) => {
             startX = e.touches[0].clientX;
             isSwiping = true;
             item.style.transition = 'none';
         }, { passive: true });
-
         item.addEventListener('touchmove', (e) => {
             if (!isSwiping) return;
             currentX = e.touches[0].clientX - startX;
-            if (Math.abs(currentX) < 120) { item.style.transform = `translateX(${currentX}px)`; }
+            if (Math.abs(currentX) < 120) item.style.transform = `translateX(${currentX}px)`;
         }, { passive: true });
-
         item.addEventListener('touchend', () => {
             isSwiping = false;
             item.style.transition = 'transform 0.3s ease';
-            if (currentX < -40) { wrapper.className = 'transaction-item-wrapper swiped-left'; } 
-            else if (currentX > 40) { wrapper.className = 'transaction-item-wrapper swiped-right'; } 
+            if (currentX < -40) wrapper.className = 'transaction-item-wrapper swiped-left';
+            else if (currentX > 40) wrapper.className = 'transaction-item-wrapper swiped-right';
             else { wrapper.className = 'transaction-item-wrapper'; item.style.transform = ''; }
             currentX = 0;
         });
-
-        wrapper.querySelector('.delete-action').addEventListener('click', () => { handleDeleteTransaction(wrapper.dataset.id); });
-        wrapper.querySelector('.edit-action').addEventListener('click', () => { handleEdit(wrapper.dataset.id); });
+        wrapper.querySelector('.delete-action').addEventListener('click', () => handleDeleteTransaction(wrapper.dataset.id));
+        wrapper.querySelector('.edit-action').addEventListener('click', () => handleEdit(wrapper.dataset.id));
     }
     
     function applySearch() {
         const searchTerm = searchInput.value.toLowerCase();
         const searchDate = dateInput.value;
-
-        // The search now filters the local cache, which is updated in real-time
         const filtered = localTransactions.filter(tx => {
             const descMatch = tx.description.toLowerCase().includes(searchTerm);
             const txDate = tx.timestamp.toDate ? tx.timestamp.toDate() : tx.timestamp;
@@ -360,10 +360,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function formatTimestamp(date) {
-        return date.toLocaleString('en-US', { 
-            year: 'numeric', month: 'short', day: 'numeric', 
-            hour: 'numeric', minute: '2-digit', hour12: true 
-        });
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+        let dayString;
+        if (targetDate.getTime() === today.getTime()) dayString = 'Today';
+        else if (targetDate.getTime() === yesterday.getTime()) dayString = 'Yesterday';
+        else dayString = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        const timeString = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        return `${dayString}, ${timeString}`;
     }
 
     function showNotification(message, type = 'error') {
@@ -381,17 +390,30 @@ document.addEventListener('DOMContentLoaded', () => {
     incomeBtn.addEventListener('click', () => selectType('income'));
     
     openSearchModalBtn.addEventListener('click', () => toggleSearchModal(true));
-    closeSearchModalBtn.addEventListener('click', () => toggleSearchModal(false));
+    closeSearchModalBtn.addEventListener('click', () => {
+        toggleSearchModal(false);
+        updateUI(localTransactions); // Reset search on close
+    });
     
-    // Search inputs now filter the local data, not re-querying Firestore
     searchInput.addEventListener('input', applySearch);
     dateInput.addEventListener('input', applySearch);
     clearSearchBtn.addEventListener('click', () => {
         searchInput.value = '';
         dateInput.value = '';
-        updateUI(localTransactions); // Reset to show all local transactions
+        updateUI(localTransactions);
+    });
+
+    descriptionInput.addEventListener('input', () => {
+        const query = descriptionInput.value.toLowerCase();
+        if (query) {
+            const filtered = suggestionDescriptions.filter(d => d.toLowerCase().includes(query));
+            renderSuggestions(filtered.slice(0, 5));
+        } else {
+            renderSuggestions();
+        }
     });
 
     renderNumpad();
-    fetchAndListenTransactions(); // Initial fetch and start listening for real-time updates
+    fetchSuggestions();
+    fetchAndListenTransactions();
 });
