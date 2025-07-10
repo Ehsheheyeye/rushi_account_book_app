@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Account Book</title>
+    
+    <!-- Google Fonts: Manrope -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore-compat.js"></script>
+    
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+
+    <!-- Notification Area -->
+    <div id="notification" class="fixed top-0 left-1/2 -translate-x-1/2 z-[100] mt-5 transition-all duration-300 opacity-0 -translate-y-20">
+        <!-- Notifications will be injected here -->
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app" class="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col relative overflow-hidden">
+
+        <!-- Header -->
+        <header class="p-6 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-slate-900">Account Book</h1>
+            <button id="openSearchModalBtn" class="p-2 rounded-full hover:bg-slate-200 active:bg-slate-300 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </button>
+        </header>
+
+        <!-- Balance & Summary Cards -->
+        <section class="px-6 space-y-4">
+            <div class="balance-card">
+                <p class="text-sm font-medium text-blue-200">Total Balance</p>
+                <p id="currentBalance" class="text-4xl font-bold text-white mt-1">₹0.00</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="summary-card">
+                    <div class="summary-card-icon bg-emerald-100 text-emerald-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg></div>
+                    <p class="text-sm text-slate-500 mt-2">Income</p>
+                    <p id="totalIncome" class="font-bold text-slate-800 text-lg">₹0.00</p>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-card-icon bg-rose-100 text-rose-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 12H6" /></svg></div>
+                    <p class="text-sm text-slate-500 mt-2">Expense</p>
+                    <p id="totalExpense" class="font-bold text-slate-800 text-lg">₹0.00</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transaction List Header -->
+        <h2 class="px-6 mt-8 mb-2 text-lg font-bold text-slate-900">Recent Transactions</h2>
+
+        <!-- Main Content Area (Transaction List) -->
+        <main id="transactionList" class="px-6 pb-28 flex-grow overflow-y-auto custom-scrollbar space-y-3">
+            <div id="loadingState" class="text-center py-16">
+                 <h3 class="font-bold text-md text-slate-600 mt-4">Loading Transactions...</h3>
+            </div>
+            <div id="emptyState" class="text-center py-16 hidden">
+                <svg class="mx-auto h-16 w-16 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                <h3 id="emptyStateTitle" class="font-bold text-md text-slate-600 mt-4">No Transactions Found</h3>
+                <p id="emptyStateSubtitle" class="text-slate-500 text-sm">Tap the '+' button to add one.</p>
+            </div>
+        </main>
+        
+        <!-- Floating Action Button -->
+        <button id="openAddTxModalBtn" class="absolute bottom-8 right-8 bg-blue-600 text-white w-16 h-16 rounded-2xl shadow-xl shadow-blue-600/30 flex items-center justify-center hover:bg-blue-700 active:scale-90 transition-all duration-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+        </button>
+    </div>
+
+    <!-- Add/Edit Transaction Full-Screen Modal -->
+    <div id="addTxModal" class="fixed inset-0 bg-slate-100 z-50 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] translate-y-full flex flex-col">
+        <header class="p-4 flex justify-between items-center">
+            <h2 id="modalTitle" class="text-xl font-bold text-slate-900">New Transaction</h2>
+            <button id="closeAddTxModalBtn" class="text-slate-500 hover:text-slate-900 transition-colors p-2 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </header>
+        
+        <div class="flex-grow flex flex-col p-4 pt-0">
+            <div class="text-center p-4 rounded-2xl bg-white shadow-sm">
+                <p id="amountDisplay" class="text-6xl font-extrabold text-slate-800">₹0</p>
+                <input type="hidden" id="editTxId">
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-3">
+                <input type="text" id="description" placeholder="Description" required class="form-input col-span-2">
+                <div class="type-toggle-wrapper">
+                    <button type="button" id="expenseBtn" class="type-btn">Expense</button>
+                    <button type="button" id="incomeBtn" class="type-btn">Income</button>
+                </div>
+            </div>
+            <div id="quickSuggestions" class="flex flex-wrap gap-2 mt-4"></div>
+            <div id="numpad" class="grid grid-cols-4 gap-3 mt-auto text-2xl font-bold text-slate-800"></div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="searchModal" class="fixed inset-0 bg-black/40 z-50 transition-opacity duration-300 opacity-0 pointer-events-none flex items-end justify-center">
+        <div id="searchModalContent" class="bg-white w-full max-w-md rounded-t-3xl p-6 transition-transform duration-300 translate-y-full">
+            <h2 class="text-xl font-bold text-slate-900 mb-4">Search Transactions</h2>
+            <div class="space-y-4">
+                <input type="text" id="searchInput" placeholder="Search by description..." class="form-input w-full">
+                <input type="date" id="dateInput" class="form-input w-full">
+            </div>
+            <div class="mt-6 flex gap-3">
+                <button id="clearSearchBtn" class="w-full py-3 bg-slate-200 text-slate-800 font-bold rounded-xl active:bg-slate-300 transition-colors">Clear</button>
+                <button id="closeSearchModalBtn" class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition-colors">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Logic Script -->
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+/* Custom styles for the premium design */
+body {
+    font-family: 'Manrope', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Glassmorphic/Neomorphic Card Styles */
+.balance-card {
+    background: linear-gradient(135deg, #3b82f6, #6366f1); /* blue-500 to indigo-500 */
+    padding: 1.5rem;
+    border-radius: 1.5rem; /* 24px */
+    box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.5);
+}
+
+.summary-card {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 1rem; /* 16px */
+    border: 1px solid #e2e8f0; /* slate-200 */
+    box-shadow: 0 4px 15px -5px rgba(0,0,0,0.05);
+}
+
+.summary-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Custom Form Input */
+.form-input {
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem; /* 12px */
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    color: #1e293b;
+}
+.form-input:focus {
+    outline: none;
+    border-color: #3b82f6; /* blue-500 */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Type Toggle Switch */
+.type-toggle-wrapper {
+    display: flex;
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    position: relative;
+    overflow: hidden;
+}
+.type-btn {
+    flex: 1;
+    padding: 0.75rem 0;
+    font-weight: 700;
+    z-index: 10;
+    transition: color 0.3s ease;
+    color: #475569; /* Default text color */
+}
+.type-btn.active { 
+    color: white; /* Active text color */
+}
+
+/* Add a pseudo-element for the animated background */
+.type-toggle-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    height: calc(100% - 4px);
+    width: calc(50% - 2px);
+    border-radius: 0.65rem;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55), background 0.3s ease;
+    transform: translateX(-150%); /* Start off-screen */
+}
+
+.type-toggle-wrapper.expense::before {
+    background: linear-gradient(135deg, #ef4444, #f43f5e); /* red to rose */
+    transform: translateX(0);
+}
+
+.type-toggle-wrapper.income::before {
+    background: linear-gradient(135deg, #10b981, #22c55e); /* emerald to green */
+    transform: translateX(calc(100%));
+}
+
+
+/* Suggestion Chips */
+.suggestion-chip {
+    background-color: #e0e7ff; /* indigo-200 */
+    color: #3730a3; /* indigo-800 */
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.suggestion-chip:hover { background-color: #c7d2fe; }
+.suggestion-chip:active { transform: scale(0.95); }
+
+/* Number Pad Styling */
+.numpad-btn {
+    background-color: white;
+    border-radius: 1.5rem;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px -5px rgba(0,0,0,0.05);
+    border: 1px solid #e2e8f0;
+    transition: all 0.1s ease;
+}
+.numpad-btn:active {
+    transform: scale(0.95);
+    background-color: #f8fafc; /* slate-50 */
+    box-shadow: none;
+}
+.numpad-save-btn {
+    background: #3b82f6; /* blue-500 */
+    color: white;
+}
+.numpad-save-btn:active {
+    background: #2563eb; /* blue-600 */
+}
+
+
+/* Custom scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Transaction Item Swipe Actions */
+.transaction-item-wrapper { position: relative; overflow: hidden; border-radius: 1rem; }
+.transaction-item { transition: transform 0.3s ease; will-change: transform; touch-action: pan-y; }
+.delete-action, .edit-action { position: absolute; top: 0; bottom: 0; width: 80px; color: white; display: flex; align-items: center; justify-content: center; transition: transform 0.3s ease; }
+
+.delete-action { right: 0; background-color: #ef4444; transform: translateX(100%); }
+.edit-action { left: 0; background-color: #f97316; transform: translateX(-100%); }
+
+.transaction-item-wrapper.swiped-left .transaction-item { transform: translateX(-80px); }
+.transaction-item-wrapper.swiped-left .delete-action { transform: translateX(0); }
+
+.transaction-item-wrapper.swiped-right .transaction-item { transform: translateX(80px); }
+.transaction-item-wrapper.swiped-right .edit-action { transform: translateX(0); }
