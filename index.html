@@ -62,7 +62,8 @@
         <h2 class="px-6 mt-8 mb-2 text-lg font-bold text-slate-900">Recent Transactions</h2>
 
         <!-- Main Content Area (Transaction List) -->
-        <main id="transactionList" class="px-6 pb-28 flex-grow overflow-y-auto custom-scrollbar space-y-3">
+        <!-- UPDATED: Increased bottom padding to pb-32 -->
+        <main id="transactionList" class="px-6 pb-32 flex-grow overflow-y-auto custom-scrollbar space-y-3">
             <div id="loadingState" class="text-center py-16">
                  <h3 class="font-bold text-md text-slate-600 mt-4">Loading Transactions...</h3>
             </div>
@@ -93,8 +94,9 @@
                 <p id="amountDisplay" class="text-6xl font-extrabold text-slate-800">₹0</p>
                 <input type="hidden" id="editTxId">
             </div>
-            <div class="mt-4 grid grid-cols-3 gap-3">
-                <input type="text" id="description" placeholder="Description" required class="form-input col-span-2">
+            <!-- UPDATED: Grid layout is now responsive for mobile -->
+            <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input type="text" id="description" placeholder="Description" required class="form-input sm:col-span-2">
                 <div class="type-toggle-wrapper">
                     <button type="button" id="expenseBtn" class="type-btn">Expense</button>
                     <button type="button" id="incomeBtn" class="type-btn">Income</button>
