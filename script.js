@@ -12,9 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialize Firebase and Firestore ---
     firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth(); // Initialize Firebase Auth
     const db = firebase.firestore();
-    const transactionsCollection = db.collection('transactions');
-    const suggestionsRef = db.collection('metadata').doc('suggestions');
+    let transactionsCollection; // Will be initialized after login
+    let suggestionsRef; // Will be initialized after login
 
     // --- Global Variables ---
     let localTransactions = [];
@@ -23,8 +24,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let amountString = "0";
     let editMode = false;
     let currentUnsubscribe = null;
+    let currentUser = null;
 
     // --- DOM Element References ---
+    const appContainer = document.getElementById('app');
+    const authContainer = document.getElementById('auth-container');
+    const emailInput = document.getElementById('emailInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const signupBtn = document.getElementById('signupBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
     const balanceEl = document.getElementById('currentBalance');
     const totalIncomeEl = document.getElementById('totalIncome');
     const totalExpenseEl = document.getElementById('totalExpense');
@@ -55,6 +65,73 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('searchInput');
     const dateInput = document.getElementById('dateInput');
     const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+    // --- Authentication Logic ---
+
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            // User is signed in.
+            currentUser = user;
+            // Use user's UID to create a unique collection for their transactions
+            transactionsCollection = db.collection('users').doc(user.uid).collection('transactions');
+            suggestionsRef = db.collection('users').doc(user.uid).collection('metadata').doc('suggestions');
+            
+            appContainer.classList.remove('hidden');
+            authContainer.classList.add('hidden');
+            
+            initializeApp();
+        } else {
+            // User is signed out.
+            currentUser = null;
+            if (currentUnsubscribe) currentUnsubscribe(); // Stop listening to old data
+            
+            appContainer.classList.add('hidden');
+            authContainer.classList.remove('hidden');
+            localTransactions = []; // Clear local data
+            updateUI([]); // Clear the UI
+        }
+    });
+    
+    const handleSignUp = () => {
+        const email = emailInput.value;
+        const password = passwordInput.value;
+        if (!email || !password) {
+            showNotification("Please enter email and password.");
+            return;
+        }
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(userCredential => {
+                showNotification(`Account created for ${userCredential.user.email}!`, 'success');
+            })
+            .catch(error => {
+                showNotification(error.message);
+            });
+    };
+    
+    const handleLogin = () => {
+        const email = emailInput.value;
+        const password = passwordInput.value;
+        if (!email || !password) {
+            showNotification("Please enter email and password.");
+            return;
+        }
+        auth.signInWithEmailAndPassword(email, password)
+            .catch(error => {
+                showNotification(error.message);
+            });
+    };
+
+    const handleLogout = () => {
+        auth.signOut();
+    };
+
+    // --- App Initialization ---
+    
+    function initializeApp() {
+        renderNumpad();
+        fetchSuggestions();
+        fetchAndListenTransactions();
+    }
 
     // --- UI Rendering & Animations ---
 
@@ -145,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderNumpad() {
-        numpadEl.innerHTML = '';
+        if (numpadEl.children.length > 0) return; // Numpad already rendered
         const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'];
         keys.forEach(key => {
             const btn = document.createElement('button');
@@ -168,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Firestore & Logic ---
 
     async function handleSaveTransaction() {
+        if (!transactionsCollection) return;
         const amount = parseFloat(amountString);
         const description = descriptionInput.value.trim();
 
@@ -197,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleDeleteTransaction(id) {
+        if (!transactionsCollection) return;
         try {
             await transactionsCollection.doc(id).delete();
             showNotification("Transaction deleted.", "success");
@@ -221,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function fetchAndListenTransactions() {
+        if (!transactionsCollection) return;
         loadingStateEl.classList.remove('hidden');
         if (currentUnsubscribe) currentUnsubscribe();
 
@@ -235,6 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchSuggestions() {
+        if (!suggestionsRef) return;
         try {
             const doc = await suggestionsRef.get();
             if (doc.exists) {
@@ -249,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function addSuggestion(description) {
+        if (!suggestionsRef) return;
         const lowerCaseDesc = description.toLowerCase();
         const exists = suggestionDescriptions.some(d => d.toLowerCase() === lowerCaseDesc);
 
@@ -369,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let dayString;
         if (targetDate.getTime() === today.getTime()) dayString = 'Today';
         else if (targetDate.getTime() === yesterday.getTime()) dayString = 'Yesterday';
-        else dayString = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        else dayString = date.toLocaleDate-string('en-US', { month: 'short', day: 'numeric' });
 
         const timeString = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         return `${dayString}, ${timeString}`;
@@ -387,6 +469,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Initial Setup & Listeners ---
+    
+    // Auth listeners
+    loginBtn.addEventListener('click', handleLogin);
+    signupBtn.addEventListener('click', handleSignUp);
+    logoutBtn.addEventListener('click', handleLogout);
+
+    // App listeners
     openModalBtn.addEventListener('click', () => { editMode = false; toggleModal(true); });
     closeModalBtn.addEventListener('click', () => toggleModal(false));
     
@@ -417,7 +506,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    renderNumpad();
-    fetchSuggestions();
-    fetchAndListenTransactions();
 });
