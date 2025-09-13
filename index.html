@@ -14,20 +14,38 @@
     <link rel="stylesheet" href="style.css">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script> <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased h-screen overflow-hidden">
 
     <div id="notification" class="fixed top-0 left-1/2 -translate-x-1/2 z-[100] mt-5 transition-all duration-300 opacity-0 -translate-y-20">
-        </div>
+    </div>
 
-    <div id="app" class="max-w-md mx-auto h-full bg-slate-50 flex flex-col relative">
+    <div id="auth-container" class="max-w-md mx-auto h-full flex flex-col justify-center p-6">
+        <h1 class="text-3xl font-bold text-slate-900 mb-2 text-center">Welcome Back!</h1>
+        <p class="text-slate-500 text-center mb-8">Login or create an account to continue.</p>
+        <div class="space-y-4">
+            <input type="email" id="emailInput" placeholder="Email" class="form-input w-full">
+            <input type="password" id="passwordInput" placeholder="Password" class="form-input w-full">
+        </div>
+        <div class="mt-6 flex flex-col gap-3">
+            <button id="loginBtn" class="w-full py-3 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition-colors">Login</button>
+            <button id="signupBtn" class="w-full py-3 bg-slate-200 text-slate-800 font-bold rounded-xl active:bg-slate-300 transition-colors">Sign Up</button>
+        </div>
+    </div>
+
+    <div id="app" class="max-w-md mx-auto h-full bg-slate-50 flex flex-col relative hidden">
 
         <header class="p-6 flex justify-between items-center flex-shrink-0">
             <h1 class="text-2xl font-bold text-slate-900">Account Book</h1>
-            <button id="openSearchModalBtn" class="p-2 rounded-full hover:bg-slate-200 active:bg-slate-300 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </button>
+            <div class="flex items-center gap-2">
+                <button id="openSearchModalBtn" class="p-2 rounded-full hover:bg-slate-200 active:bg-slate-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </button>
+                <button id="logoutBtn" class="p-2 rounded-full hover:bg-slate-200 active:bg-slate-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </button>
+            </div>
         </header>
 
         <section class="px-6 space-y-4 flex-shrink-0">
