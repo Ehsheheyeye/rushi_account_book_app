@@ -1,28 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Firebase Configuration ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyD_u4q6CH6IIP9iuSJ_ZbBFK6L_byTXLfA",
-        authDomain: "account-book-rushi.firebaseapp.com",
-        projectId: "account-book-rushi",
-        storageBucket: "account-book-rushi.firebasestorage.app",
-        messagingSenderId: "102100466470",
-        appId: "1:102100466470:web:67204556eba94228011fe7",
-        measurementId: "G-24WD42QHP2"
-    };
-
-    // --- Initialize Firebase and Firestore ---
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const transactionsCollection = db.collection('transactions');
-    const suggestionsRef = db.collection('metadata').doc('suggestions');
-
     // --- Global Variables ---
     let localTransactions = [];
     let suggestionDescriptions = ["Salary", "Groceries", "Food", "Transport", "Rent", "Bills", "Shopping"];
     let selectedType = null;
     let amountString = "0";
     let editMode = false;
-    let currentUnsubscribe = null;
 
     // --- DOM Element References ---
     const balanceEl = document.getElementById('currentBalance');
@@ -56,6 +38,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateInput = document.getElementById('dateInput');
     const clearSearchBtn = document.getElementById('clearSearchBtn');
 
+    // --- Local Storage Functions ---
+
+    function saveTransactionsToLocalStorage() {
+        localStorage.setItem('transactions', JSON.stringify(localTransactions));
+    }
+
+    function loadTransactionsFromLocalStorage() {
+        const storedTransactions = localStorage.getItem('transactions');
+        if (storedTransactions) {
+            localTransactions = JSON.parse(storedTransactions).map(tx => ({
+                ...tx,
+                timestamp: new Date(tx.timestamp) // Ensure timestamp is a Date object
+            }));
+        } else {
+            localTransactions = [];
+        }
+    }
+
     // --- UI Rendering & Animations ---
 
     function updateUI(txList) {
@@ -75,9 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTransactionList(txList) {
         transactionListEl.innerHTML = '';
-        transactionListEl.append(loadingStateEl, emptyStateEl);
+        transactionListEl.append(emptyStateEl);
         
-        loadingStateEl.classList.add('hidden');
         emptyStateEl.classList.toggle('hidden', txList.length > 0);
 
         const sortedTransactions = [...txList].sort((a, b) => b.timestamp - a.timestamp);
@@ -87,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
             transactionListEl.appendChild(item);
         });
     }
-
+    
     function createTransactionElement(transaction) {
         const wrapper = document.createElement('div');
         wrapper.className = 'transaction-item-wrapper';
@@ -102,14 +101,12 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>`
             : `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 12H6" /></svg>`;
 
-        const txDate = transaction.timestamp.toDate ? transaction.timestamp.toDate() : transaction.timestamp;
-
         item.innerHTML = `
             <div class="flex items-center gap-3">
                 <div class="h-11 w-11 flex items-center justify-center rounded-full ${iconColor}">${icon}</div>
                 <div>
                     <p class="font-bold text-slate-800">${transaction.description}</p>
-                    <p class="text-sm text-slate-500">${formatTimestamp(txDate)}</p>
+                    <p class="text-sm text-slate-500">${formatTimestamp(transaction.timestamp)}</p>
                 </div>
             </div>
             <p class="font-bold text-lg ${isIncome ? 'text-emerald-600' : 'text-rose-600'}">${formatCurrency(transaction.amount)}</p>
@@ -165,9 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
         numpadEl.parentElement.appendChild(saveBtn);
     }
 
-    // --- Firestore & Logic ---
+    // --- Core Logic ---
 
-    async function handleSaveTransaction() {
+    function handleSaveTransaction() {
         const amount = parseFloat(amountString);
         const description = descriptionInput.value.trim();
 
@@ -175,35 +172,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(amount) || amount <= 0) { showNotification("Please enter a valid amount."); return; }
         if (!description) { showNotification("Please enter a description."); return; }
 
-        const txData = { type: selectedType, amount, description };
-
-        try {
-            if (editMode) {
-                const txId = editTxIdInput.value;
-                await transactionsCollection.doc(txId).update(txData);
+        if (editMode) {
+            const txId = editTxIdInput.value;
+            const txIndex = localTransactions.findIndex(t => t.id === txId);
+            if (txIndex > -1) {
+                localTransactions[txIndex].type = selectedType;
+                localTransactions[txIndex].amount = amount;
+                localTransactions[txIndex].description = description;
                 showNotification("Transaction updated successfully!", "success");
-            } else {
-                txData.timestamp = firebase.firestore.FieldValue.serverTimestamp();
-                await transactionsCollection.add(txData);
-                showNotification("Transaction added successfully!", "success");
             }
-            
-            await addSuggestion(description);
-            toggleModal(false);
-        } catch (error) {
-            console.error("Error saving transaction: ", error);
-            showNotification("Error saving transaction. Please try again.");
+        } else {
+            const newTx = {
+                id: Date.now().toString(),
+                type: selectedType,
+                amount,
+                description,
+                timestamp: new Date()
+            };
+            localTransactions.push(newTx);
+            showNotification("Transaction added successfully!", "success");
         }
+        
+        addSuggestion(description);
+        saveTransactionsToLocalStorage();
+        updateUI(localTransactions);
+        toggleModal(false);
     }
 
-    async function handleDeleteTransaction(id) {
-        try {
-            await transactionsCollection.doc(id).delete();
-            showNotification("Transaction deleted.", "success");
-        } catch (error) {
-            console.error("Error deleting transaction: ", error);
-            showNotification("Error deleting transaction.");
-        }
+    function handleDeleteTransaction(id) {
+        localTransactions = localTransactions.filter(tx => tx.id !== id);
+        saveTransactionsToLocalStorage();
+        updateUI(localTransactions);
+        showNotification("Transaction deleted.", "success");
     }
 
     function handleEdit(id) {
@@ -219,46 +219,13 @@ document.addEventListener('DOMContentLoaded', () => {
         selectType(transaction.type);
         toggleModal(true);
     }
-
-    function fetchAndListenTransactions() {
-        loadingStateEl.classList.remove('hidden');
-        if (currentUnsubscribe) currentUnsubscribe();
-
-        currentUnsubscribe = transactionsCollection.onSnapshot(snapshot => {
-            localTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            updateUI(localTransactions);
-        }, error => {
-            console.error("Error fetching transactions: ", error);
-            showNotification("Could not fetch transactions.");
-            loadingStateEl.classList.add('hidden');
-        });
-    }
-
-    async function fetchSuggestions() {
-        try {
-            const doc = await suggestionsRef.get();
-            if (doc.exists) {
-                const firestoreSuggestions = doc.data().descriptions || [];
-                const combined = [...firestoreSuggestions, ...suggestionDescriptions];
-                suggestionDescriptions = [...new Set(combined)];
-            }
-        } catch (error) {
-            console.error("Error fetching suggestions:", error);
-        }
-        renderSuggestions();
-    }
-
-    async function addSuggestion(description) {
+    
+    function addSuggestion(description) {
         const lowerCaseDesc = description.toLowerCase();
         const exists = suggestionDescriptions.some(d => d.toLowerCase() === lowerCaseDesc);
 
         if (!exists) {
             suggestionDescriptions.unshift(description);
-            try {
-                await suggestionsRef.set({ descriptions: suggestionDescriptions }, { merge: true });
-            } catch (error) {
-                console.error("Error updating suggestions:", error);
-            }
         }
     }
 
@@ -346,8 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchDate = dateInput.value;
         const filtered = localTransactions.filter(tx => {
             const descMatch = tx.description.toLowerCase().includes(searchTerm);
-            const txDate = tx.timestamp.toDate ? tx.timestamp.toDate() : tx.timestamp;
-            const dateMatch = !searchDate || txDate.toISOString().split('T')[0] === searchDate;
+            const dateMatch = !searchDate || tx.timestamp.toISOString().split('T')[0] === searchDate;
             return descMatch && dateMatch;
         });
         updateUI(filtered);
@@ -413,7 +379,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    renderNumpad();
-    fetchSuggestions();
-    fetchAndListenTransactions();
+    // --- App Initialization ---
+    function init() {
+        loadTransactionsFromLocalStorage();
+        updateUI(localTransactions);
+        renderNumpad();
+        renderSuggestions();
+    }
+
+    init();
 });
