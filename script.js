@@ -379,7 +379,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const bgColor = type === 'success' ? 'bg-emerald-500' : 'bg-red-500';
         notificationEl.innerHTML = `<div class="${bgColor} text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg">${message}</div>`;
         notificationEl.classList.remove('opacity-0', '-translate-y-20');
-        setTimeout(() => { notificationEl.classList.add('opacity-0', '-translate-y-20'); }, 2500);
+        notificationEl.classList.add('opacity-100', 'translate-y-0');
+        setTimeout(() => { 
+            notificationEl.classList.remove('opacity-100', 'translate-y-0');
+            notificationEl.classList.add('opacity-0', '-translate-y-20');
+        }, 2500);
     }
 
     // --- Initial Setup & Listeners ---
